@@ -1,5 +1,23 @@
 import streamlit as st
 import pandas as pd
+import altair as alt
+
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-image: linear-gradient(135deg, #f6fff6 0%, #f0fbff 40%, #ffffff 100%);
+        background-attachment: fixed;
+        background-size: cover;
+    }
+    .main .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # --- Simple constants for demo (ft³ CH4 per cow per day) ---
 # Bakersfield value is based on EPA digester data you extracted.
