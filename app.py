@@ -9,7 +9,7 @@ LOCATION_FACTORS = {
     "Bakersfield": {"climate": "Warm", "ft3_per_cow": 37},  # CA EPA-based
 }
 
-# Climate multipliers for the line chart (relative to "Mild")
+# Climate multipliers for the climate chart (relative to "Mild")
 CLIMATE_MULTIPLIER = {
     "Cold": 0.7,
     "Mild": 1.0,
@@ -56,22 +56,37 @@ def climate_scenarios(cows: int, base_location: str, mode: str):
     return values
 
 
-# ----------------- Page config + BACKGROUND -----------------
+# ----------------- Page config + STYLING -----------------
 st.set_page_config(page_title="GHG Lagoon Mini-Demo", layout="wide")
 
-# Light plant-like / nature-ish background using a soft gradient
-# (If you have a plant image URL, you can replace "linear-gradient(...)" with url("..."))
+# Light nature-style background + dark text so everything is visible
 st.markdown(
     """
     <style>
     .stApp {
-        background-image: linear-gradient(135deg, #f6fff6 0%, #f0fbff 40%, #ffffff 100%);
+        background-image: linear-gradient(135deg, #f2fff6 0%, #f0f8ff 40%, #ffffff 100%);
         background-attachment: fixed;
         background-size: cover;
     }
-    .main .block-container {
-        padding-top: 1.5rem;
-        padding-bottom: 1.5rem;
+
+    /* Make all main text dark and readable */
+    html, body, [data-testid="stAppViewContainer"], .stApp {
+        color: #123b2f;
+        font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    h1, h2, h3, h4, h5, h6, p, li, span, div {
+        color: #123b2f;
+    }
+
+    /* Header transparent */
+    [data-testid="stHeader"] {
+        background: rgba(255, 255, 255, 0.0);
+    }
+
+    /* Optional: softer sidebar background if you use sidebar later */
+    [data-testid="stSidebar"] {
+        background-color: #f6fff9;
     }
     </style>
     """,
@@ -81,9 +96,8 @@ st.markdown(
 # ----------------- UI -----------------
 st.title("GHG Lagoon Mini-Demo")
 st.write(
-    "Play with herd size and location to see how a covered lagoon could "
-    "change methane emissions. This is a simplified preview of my full "
-    "kinetic + LSTM + Spiking Neural Network model."
+    "Play with herd size and location to see how a covered lagoon could change methane emissions. "
+    "This is a simplified preview of the full kinetic + LSTM + Spiking Neural Network methane model."
 )
 
 # Preset buttons
@@ -124,19 +138,21 @@ with right_col:
     if run_button:
         methane_ft3 = predict_methane_ft3(cows, location, mode)
 
-        # -------- TOP: MAIN METRICS --------
+        # -------- TOP: CARDS WITH MAIN METRICS --------
         st.subheader("Predicted methane emission")
-        st.metric(
-            label=f"Methane emission ({mode})",
-            value=f"{methane_ft3:,.0f} ft³",
-        )
 
-        # Validation metric from your full model
-        st.metric(
-            label="Model accuracy (full version)",
-            value="≈93%",
-            delta="R² ≈ 0.95, MAPE ≈ 6.8%",
-        )
+        m1, m2 = st.columns(2)
+        with m1:
+            st.metric(
+                label=f"Methane emission ({mode})",
+                value=f"{methane_ft3:,.0f} ft³",
+            )
+        with m2:
+            st.metric(
+                label="Model accuracy (full version)",
+                value="≈93%",
+                delta="R² ≈ 0.95, MAPE ≈ 6.8%",
+            )
 
         # -------- CONVERSION: kWh & cars --------
         kwh = methane_ft3 * ELECTRICITY_PER_FT3
@@ -145,72 +161,4 @@ with right_col:
         if mode == "year":
             car_equiv = co2eq_kg / CAR_CO2_PER_YEAR_KG
         elif mode == "month":
-            car_equiv = (co2eq_kg * 12) / CAR_CO2_PER_YEAR_KG  # rough annualised equivalent
-        else:  # day
-            car_equiv = (co2eq_kg * 365) / CAR_CO2_PER_YEAR_KG  # rough annualised equivalent
-
-        st.write(
-            f"**Energy equivalent:** ~{kwh:,.0f} kWh"
-            f" &nbsp; | &nbsp; **Climate impact:** ~{car_equiv:,.1f} car-equivalents (CO₂-eq)"
-        )
-
-        # -------- CLIMATE LINE CHART (prettier) --------
-        st.markdown("#### How would climate change methane?")
-
-        scenario_values = climate_scenarios(cows, location, mode)
-        df = pd.DataFrame(
-            {
-                "Climate": list(scenario_values.keys()),
-                "Methane_ft3": list(scenario_values.values()),
-            }
-        )
-
-        chart = (
-            alt.Chart(df)
-            .mark_line(point=True)
-            .encode(
-                x=alt.X("Climate:N", sort=["Cold", "Mild", "Warm"], title="Climate scenario"),
-                y=alt.Y(
-                    "Methane_ft3:Q",
-                    title=f"Methane emission ({mode}) [ft³]",
-                ),
-                tooltip=[
-                    alt.Tooltip("Climate:N", title="Climate"),
-                    alt.Tooltip("Methane_ft3:Q", title="Methane (ft³)", format=","),
-                ],
-            )
-        )
-
-        st.altair_chart(chart, use_container_width=True)
-
-        # -------- VALIDATION SECTION --------
-        st.markdown("#### How does this compare to reference data?")
-
-        if location == "Bakersfield":
-            # Compare daily emission to EPA-style reference range
-            daily_demo = predict_methane_ft3(cows, location, "day")
-            ref_min, ref_max = 600_000, 700_000   # example CA digester range
-            ref_mid = (ref_min + ref_max) / 2
-            diff_pct = (daily_demo - ref_mid) / ref_mid * 100
-
-            st.write(
-                f"For large covered lagoons in Bakersfield, EPA AgSTAR reports roughly "
-                f"{ref_min:,}–{ref_max:,} ft³ CH₄ per **day**."
-            )
-            st.write(
-                f"In this demo, your setup gives about **{daily_demo:,.0f} ft³/day**, "
-                f"which is {diff_pct:+.1f}% relative to the middle of that range."
-            )
-        else:
-            st.write(
-                "For Pullman and Lynden, this demo scales methane from the same EPA-based "
-                "factors and your lab-derived kinetic relationships. The full model refines "
-                "these values using time-series learning."
-            )
-
-        st.caption(
-            "Demo model only. The full system uses experimental lagoon data, first-order + Arrhenius "
-            "kinetics, and a hybrid LSTM + Spiking Neural Network to generate validated predictions."
-        )
-    else:
-        st.info("Choose a preset or adjust the sliders, then click **Predict methane**.")
+            car_equiv = (co2eq_kg * 12) / CAR_CO2_PER_YEAR_KG  # annualised intuiti*
